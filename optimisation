@@ -29,24 +29,6 @@ int evaluer_emploi_du_temps(EmploiDuTemps *edt);
 void generer_voisinage(EmploiDuTemps *edt, EmploiDuTemps *voisin);
 void recherche_locale(EmploiDuTemps *edt);
 void saisir_donnees(EmploiDuTemps *edt);
-
-int main() {
-    EmploiDuTemps edt;
-
-    saisir_donnees(&edt);
-
-    recherche_locale(&edt);
-
-    printf("Emploi du temps optimal:\n");
-    for (int i = 0; i < edt.nb_cours; i++) {
-        printf("Cours %d: Jour %d, Heure %d, Duree %d, Salle %d, Professeur %d, Etudiants %d, Pref %d\n",
-               i, edt.cours[i].jour, edt.cours[i].heure, edt.cours[i].duree,
-               edt.cours[i].salle, edt.cours[i].professeur, edt.cours[i].nb_etudiants, edt.cours[i].pref);
-    }
-
-    return 0;
-}
-
 int evaluer_emploi_du_temps(EmploiDuTemps *edt) {
     // ... (Même implémentation que précédemment)
 }
@@ -103,3 +85,22 @@ void saisir_donnees(EmploiDuTemps *edt) {
         scanf("%d", &(edt->cours[i].pref));
     }
 }
+int main() {
+    EmploiDuTemps edt;
+
+    saisir_donnees(&edt);
+
+    recherche_locale(&edt);
+
+    printf("Emploi du temps optimal:\n");
+    for (int i = 0; i < edt.nb_cours; i++) {
+        printf("Cours %d: Jour %d, Heure %d, Duree %d, Salle %d, Professeur %d, Etudiants %d, Pref %d\n",
+               i, edt.cours[i].jour, edt.cours[i].heure, edt.cours[i].duree,
+               edt.cours[i].salle, edt.cours[i].professeur, edt.cours[i].nb_etudiants, edt.cours[i].pref);
+    }
+
+
+    return 0;
+}
+
+
