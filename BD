@@ -1,0 +1,53 @@
+create database projet;
+use projet;
+CREATE TABLE Cours_Eleves (
+    ID_Cours INT PRIMARY KEY AUTO_INCREMENT,
+    ID_Eleve INT NOT NULL,
+    ID_Prof INT NOT NULL,
+    ID_Matière INT NOT NULL,
+    ID_Salle INT NOT NULL,
+    Jour VARCHAR(15) NOT NULL,
+    HeureDebut TIME NOT NULL,
+    HeureFin TIME NOT NULL,
+    FOREIGN KEY (ID_Eleve) REFERENCES Eleves(ID_Eleve),
+    FOREIGN KEY (ID_Prof) REFERENCES Professeurs(ID_Prof),
+    FOREIGN KEY (ID_Matière) REFERENCES Matières(ID_Matière),
+    FOREIGN KEY (ID_Salle) REFERENCES Salles(ID_Salle)
+);
+
+CREATE TABLE Eleves (
+    ID_Eleve INT PRIMARY KEY AUTO_INCREMENT,
+    Nom VARCHAR(50) NOT NULL,
+    Prenom VARCHAR(50) NOT NULL,
+    Classe VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Professeurs (
+    ID_Prof INT PRIMARY KEY AUTO_INCREMENT,
+    Nom VARCHAR(50) NOT NULL,
+    Prenom VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Matières (
+    ID_Matière INT PRIMARY KEY AUTO_INCREMENT,
+    Nom VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Salles (
+    ID_Salle INT PRIMARY KEY AUTO_INCREMENT,
+    Nom VARCHAR(50) NOT NULL,
+    Capacite INT NOT NULL
+);
+
+CREATE TABLE Disponibilités (
+    ID_Dispo INT PRIMARY KEY AUTO_INCREMENT,
+    ID_Prof INT NOT NULL,
+    ID_Matière INT NOT NULL,
+    ID_Salle INT NOT NULL,
+    Jour VARCHAR(15) NOT NULL,
+    HeureDebut TIME NOT NULL,
+    HeureFin TIME NOT NULL,
+    FOREIGN KEY (ID_Prof) REFERENCES Professeurs(ID_Prof),
+    FOREIGN KEY (ID_Matière) REFERENCES Matières(ID_Matière),
+    FOREIGN KEY (ID_Salle) REFERENCES Salles(ID_Salle)
+);
