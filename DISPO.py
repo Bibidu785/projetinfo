@@ -51,3 +51,5 @@ conn.commit()
 # Fermeture de la connexion à la base de données
 cursor.close()
 conn.close()
+
+
