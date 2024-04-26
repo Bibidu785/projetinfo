@@ -1,18 +1,11 @@
--- Créer la base de données projetinfo
+ -- Créer la base de données projetinfo
 CREATE DATABASE IF NOT EXISTS projetinfo;
 
 -- Utiliser la base de données projetinfo
 USE projetinfo;
 
--- Table des disponibilités des salles
-CREATE TABLE IF NOT EXISTS Disponibilites_salle (
-    ID_Disponibilite INT AUTO_INCREMENT PRIMARY KEY,
-    ID_Salle INT,
-    JourSemaine VARCHAR(10),
-    HeureDebut TIME,
-    HeureFin TIME,
-    FOREIGN KEY (ID_Salle) REFERENCES Salles(ID_Salle)
-);
+
+
 
 
 -- Table des professeurs
@@ -21,16 +14,16 @@ CREATE TABLE IF NOT EXISTS Professeurs (
     Nom VARCHAR(255),
     Prenom VARCHAR(255)
 );
-
 -- Table des matières
 CREATE TABLE IF NOT EXISTS Matieres (
     ID_Matiere INT AUTO_INCREMENT PRIMARY KEY,
     Nom VARCHAR(255),
     ID_Professeur INT,
     Nb_Cours INT,
-    Duree INT,
+    Duree VARCHAR(10), -- Modification de la colonne Duree pour stocker des durées sous forme de chaînes de caractères
     FOREIGN KEY (ID_Professeur) REFERENCES Professeurs(ID_Professeur)
 );
+
 
 -- Table des salles
 CREATE TABLE IF NOT EXISTS Salles (
@@ -84,4 +77,14 @@ CREATE TABLE IF NOT EXISTS Cours_Classe (
     ID_Classe INT,
     FOREIGN KEY (ID_Cours) REFERENCES Cours_Etudiants(ID_Cours),
     FOREIGN KEY (ID_Classe) REFERENCES Classes(ID_Classe)
+);
+
+-- Table des disponibilités des salles
+CREATE TABLE IF NOT EXISTS Disponibilites_salle (
+    ID_Disponibilite INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Salle INT,
+    JourSemaine VARCHAR(10),
+    HeureDebut TIME,
+    HeureFin TIME,
+    FOREIGN KEY (ID_Salle) REFERENCES Salles(ID_Salle)
 );
