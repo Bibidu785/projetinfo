@@ -1,122 +1,102 @@
-import random
+import copy
 
-class Cours:
-    def __init__(self, jour, heure, duree, salle, professeur, nb_etudiants, pref):
-        self.jour = jour
-        self.heure = heure
-        self.duree = duree
-        self.salle = salle
-        self.professeur = professeur
-        self.nb_etudiants = nb_etudiants
-        self.pref = pref
+def evaluate_timetable(timetable, disponibilites, capacites_salles):
+    conflicts_salle = 0
+    conflicts_professeur = 0
+    capacity_constraints = 0
+    prof_availability_constraints = 0
+    individual_preferences = 0
 
-class EmploiDuTemps:
-    def __init__(self, nb_cours, nb_salles, capacites_salles, nb_professeurs, disponibilites_professeurs, nb_jours, temps_max):
-        self.nb_cours = nb_cours
-        self.nb_salles = nb_salles
-        self.capacites_salles = capacites_salles
-        self.nb_professeurs = nb_professeurs
-        self.disponibilites_professeurs = disponibilites_professeurs
-        self.nb_jours = nb_jours
-        self.temps_max = temps_max
-        self.cours = []
+    for jour, heures in timetable.items():
+        for heure, cours in heures.items():
+            for course in cours:
+                salle = course['Salle']
+                professeur = course['Professeur']
+                heure_debut = heure
+                heure_fin = course['Heure fin']
 
-def evaluer_emploi_du_temps(edt):
-    conflits = 0
+                # Vérification des conflits de salle
+                salle_dispo = [disp for disp in disponibilites if disp[1] == jour and disp[2] <= heure_debut and disp[3] >= heure_fin and disp[0] == salle]
+                if not salle_dispo:
+                    conflicts_salle += 1
 
-    for i in range(edt.nb_cours - 1):
-        for j in range(i + 1, edt.nb_cours):
-            if (edt.cours[i].salle == edt.cours[j].salle and
-                edt.cours[i].jour == edt.cours[j].jour and
-                ((edt.cours[i].heure < edt.cours[j].heure and
-                  edt.cours[i].heure + edt.cours[i].duree > edt.cours[j].heure) or
-                 (edt.cours[i].heure > edt.cours[j].heure and
-                  edt.cours[i].heure < edt.cours[j].heure + edt.cours[j].duree))):
-                conflits += 1
+                # Vérification des conflits de professeur
+                prof_dispo = [disp for disp in disponibilites if disp[1] == jour and disp[2] <= heure_debut and disp[3] >= heure_fin and disp[0] == professeur]
+                if not prof_dispo:
+                    conflicts_professeur += 1
 
-    for i in range(edt.nb_cours - 1):
-        for j in range(i + 1, edt.nb_cours):
-            if (edt.cours[i].professeur == edt.cours[j].professeur and
-                edt.cours[i].jour == edt.cours[j].jour and
-                ((edt.cours[i].heure < edt.cours[j].heure and
-                  edt.cours[i].heure + edt.cours[i].duree > edt.cours[j].heure) or
-                 (edt.cours[i].heure > edt.cours[j].heure and
-                  edt.cours[i].heure < edt.cours[j].heure + edt.cours[j].duree))):
-                conflits += 1
+                # Vérification des contraintes de capacité des salles
+                if capacites_salles[salle] < len(cours):
+                    capacity_constraints += 1
 
-    for i in range(edt.nb_cours):
-        if edt.cours[i].nb_etudiants > edt.capacites_salles[edt.cours[i].salle]:
-            conflits += 1
+                # Vérification des contraintes de disponibilité des professeurs
+                if not prof_dispo:
+                    prof_availability_constraints += 1
 
-    for i in range(edt.nb_cours):
-        if edt.disponibilites_professeurs[edt.cours[i].professeur][edt.cours[i].heure] == 0:
-            conflits += 1
+                # Vérification des préférences individuelles (non implémentées)
 
-    for i in range(edt.nb_cours):
-        if not edt.cours[i].pref:
-            conflits += 1
+    evaluation = {
+        'conflicts_salle': conflicts_salle,
+        'conflicts_professeur': conflicts_professeur,
+        'capacity_constraints': capacity_constraints,
+        'prof_availability_constraints': prof_availability_constraints,
+        'individual_preferences': individual_preferences
+    }
 
-    return conflits
+    return evaluation
 
-def generer_voisinage(edt, voisin):
-    a = random.randint(0, edt.nb_cours - 1)
-    b = random.randint(0, edt.nb_cours - 1)
+def generate_neighborhood(timetable):
+    # Génère un voisinage en effectuant un échange aléatoire de deux cours
+    # Nous allons simplement choisir deux cours aléatoires et échanger leurs horaires
+    new_timetable = copy.deepcopy(timetable)
 
-    while b == a:
-        b = random.randint(0, edt.nb_cours - 1)
+    # Choix aléatoire d'un jour et d'une heure
+    jour1 = random.choice(list(new_timetable.keys()))
+    heure1 = random.choice(list(new_timetable[jour1].keys()))
 
-    voisin.nb_cours = edt.nb_cours
-    voisin.nb_salles = edt.nb_salles
-    voisin.capacites_salles = edt.capacites_salles
-    voisin.nb_professeurs = edt.nb_professeurs
-    voisin.disponibilites_professeurs = edt.disponibilites_professeurs
-    voisin.nb_jours = edt.nb_jours
-    voisin.temps_max = edt.temps_max
+    # Choix aléatoire d'un autre jour et d'une autre heure
+    jour2 = random.choice(list(new_timetable.keys()))
+    heure2 = random.choice(list(new_timetable[jour2].keys()))
 
-    voisin.cours = edt.cours[:]
+    # Échange des cours entre les deux horaires
+    cours1 = new_timetable[jour1][heure1]
+    cours2 = new_timetable[jour2][heure2]
+    new_timetable[jour1][heure1] = cours2
+    new_timetable[jour2][heure2] = cours1
 
-    voisin.cours[a], voisin.cours[b] = voisin.cours[b], voisin.cours[a]
+    return new_timetable
 
-def recherche_locale(edt):
-    meilleure_eval = evaluer_emploi_du_temps(edt)
-    iterations_sans_amelioration = 0
-    iterations_max = 1000
+def recherche_locale(initial_timetable, disponibilites, capacites_salles, max_iterations=1000):
+    current_timetable = initial_timetable
+    best_timetable = initial_timetable
+    best_evaluation = evaluate_timetable(initial_timetable, disponibilites, capacites_salles)
 
-    while iterations_sans_amelioration < iterations_max:
-        voisin = EmploiDuTemps(0, 0, [], 0, [], 0, 0)
-        generer_voisinage(edt, voisin)
+    iterations = 0
+    while iterations < max_iterations:
+        new_timetable = generate_neighborhood(current_timetable)
+        new_evaluation = evaluate_timetable(new_timetable, disponibilites, capacites_salles)
 
-        eval_voisin = evaluer_emploi_du_temps(voisin)
+        if new_evaluation['conflicts_salle'] + new_evaluation['conflicts_professeur'] + new_evaluation['capacity_constraints'] + new_evaluation['prof_availability_constraints'] + new_evaluation['individual_preferences'] < best_evaluation['conflicts_salle'] + best_evaluation['conflicts_professeur'] + best_evaluation['capacity_constraints'] + best_evaluation['prof_availability_constraints'] + best_evaluation['individual_preferences']:
+            best_timetable = new_timetable
+            best_evaluation = new_evaluation
 
-        if eval_voisin < meilleure_eval:
-            meilleure_eval = eval_voisin
-            edt = voisin
-            iterations_sans_amelioration = 0
-        else:
-            iterations_sans_amelioration += 1
+        current_timetable = new_timetable
+        iterations += 1
 
-    return edt
+    return best_timetable
 
-def main():
-    edt = EmploiDuTemps(10, 3, [30, 40, 50], 2, [[1, 0, 1, 1, 0, 1, 1, 1], [1, 1, 0, 1, 1, 1, 0, 1]], 5, 8)
+def optimize_timetable(cursor, conn):
+    # Fetching data
+    cours = fetch_data(cursor, "Cours_Etudiants")
+    professeurs = fetch_data(cursor, "Professeurs")
+    matieres = fetch_data(cursor, "Matieres")  # Ajout pour récupérer les données des matières
+    salles = fetch_data(cursor, "Salles")
+    disponibilites = fetch_data(cursor, "Disponibilites")
 
-    random.seed()
+    # Création d'un emploi du temps initial
+    initial_timetable = generate_initial_timetable(cours, professeurs, matieres, salles)
 
-    for i in range(edt.nb_cours):
-        jour = random.randint(0, edt.nb_jours - 1)
-        heure = random.randint(0, edt.temps_max - 1)
-        duree = random.randint(1, 3)
-        salle = random.randint(0, edt.nb_salles - 1)
-        professeur = random.randint(0, edt.nb_professeurs - 1)
-        nb_etudiants = random.randint(1, 50)
-        pref = random.randint(0, 1)
-        edt.cours.append(Cours(jour, heure, duree, salle, professeur, nb_etudiants, pref))
+    # Optimisation de l'emploi du temps
+    optimized_timetable = recherche_locale(initial_timetable, disponibilites, capacites_salles)
 
-    edt = recherche_locale(edt)
-
-    print("Emploi du temps optimal:")
-    for i, cours in enumerate(edt.cours):
-        print(f"Cours {i}: Jour {cours.jour}, Heure {cours.heure}, Duree {cours.duree}, Salle {cours.salle}, Professeur {cours.professeur}, Etudiants {cours.nb_etudiants}, Pref {cours.pref}")
-
-if __name__ == "__main__":
-    main()
+    return optimized_timetable
