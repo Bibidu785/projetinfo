@@ -3,6 +3,8 @@ from openpyxl import Workbook
 from datetime import datetime
 from faker import Faker
 import random
+import os
+import copy
 
 def connect_to_database():
     try:
@@ -22,6 +24,7 @@ def get_capacite_salle():
     return random.randint(10, 50)  # Génère une capacité aléatoire entre 10 et 50
 
 def saisie_professeurs(cursor, conn):
+    global fake
     nom = fake.last_name()
     prenom = fake.first_name()
     try:
@@ -33,6 +36,7 @@ def saisie_professeurs(cursor, conn):
         conn.rollback()
 
 def saisie_matieres(cursor, conn):
+    global fake
     nom = fake.word()
     id_professeur = random.randint(1, 10)  # Supposons que vous avez 10 professeurs
     nb_cours = random.randint(1, 5)  # Supposons que chaque matière a entre 1 et 5 cours par semaine
@@ -46,6 +50,7 @@ def saisie_matieres(cursor, conn):
         conn.rollback()
 
 def saisie_salles(cursor, conn):
+    global fake
     nom = fake.word()
     capacite = get_capacite_salle()
     try:
@@ -57,6 +62,7 @@ def saisie_salles(cursor, conn):
         conn.rollback()
 
 def saisie_classes(cursor, conn):
+    global fake
     nom = fake.word()
     try:
         cursor.execute("INSERT INTO Classes (Nom) VALUES (%s)", (nom,))
@@ -67,6 +73,7 @@ def saisie_classes(cursor, conn):
         conn.rollback()
 
 def saisie_cours_etudiants(cursor, conn):
+    global fake
     try:
         id_professeur = random.randint(1, 10)  # Supposons que vous avez 10 professeurs
         id_matiere = random.randint(1, 20)  # Supposons que vous avez 20 matières
@@ -84,6 +91,7 @@ def saisie_cours_etudiants(cursor, conn):
         conn.rollback()
 
 def saisie_eleves(cursor, conn):
+    global fake
     nom = fake.last_name()
     prenom = fake.first_name()
     id_classe = random.randint(1, 5)  # Supposons que vous avez 5 classes
@@ -96,6 +104,7 @@ def saisie_eleves(cursor, conn):
         conn.rollback()
 
 def saisie_disponibilites(cursor, conn):
+    global fake
     id_professeur = random.randint(1, 10)  # Supposons que vous avez 10 professeurs
     jour = fake.date_time().strftime('%A')  # Génère un jour de la semaine aléatoire
     heure_debut = fake.date_time_between(datetime(2022, 1, 1, 8, 0, 0), datetime(2022, 1, 1, 18, 0, 0)).strftime("%H:%M:%S")  # Génère une heure entre 8h et 18h
@@ -128,6 +137,7 @@ def saisie_cours_classe(cursor, conn):
         conn.rollback()
 
 def saisie_disponibilites_salle(cursor, conn):
+    global fake
     try:
         id_salle = random.randint(1, 5)  # Supposons que vous avez 5 salles
         jour = fake.date_time().strftime('%A')  # Génère un jour de la semaine aléatoire
@@ -146,18 +156,10 @@ def fetch_data(cursor, table_name):
     cursor.execute(f"SELECT * FROM {table_name}")
     return cursor.fetchall()
 
-def generate_timetable(cursor, conn):
-    # Fetching data
-    cours = fetch_data(cursor, "Cours_Etudiants")
-    professeurs = fetch_data(cursor, "Professeurs")
-    matieres = fetch_data(cursor, "Matieres")  # Ajout pour récupérer les données des matières
-    salles = fetch_data(cursor, "Salles")
-    disponibilites = fetch_data(cursor, "Disponibilites")
-
+def generate_initial_timetable(cours, professeurs, matieres, salles):
     # Création d'un emploi du temps vide
     timetable = {}
 
-    # Remplissage de l'emploi du temps
     for cours_item in cours:
         id_cours = cours_item[0]
         id_professeur = cours_item[1]
@@ -174,66 +176,124 @@ def generate_timetable(cursor, conn):
         # Récupération du nom de la salle
         salle_info = [salle for salle in salles if salle[0] == id_salle][0]
 
-        # Vérification de la disponibilité du professeur
-        prof_dispo = [disp for disp in disponibilites if disp[1] == jour and disp[2] <= heure_debut and disp[3] >= heure_fin and disp[0] == id_professeur]
+        if jour not in timetable:
+            timetable[jour] = {}
+        if heure_debut not in timetable[jour]:
+            timetable[jour][heure_debut] = []
 
-        # Vérification de la disponibilité de la salle
-        salle_dispo = [disp for disp in disponibilites if disp[1] == jour and disp[2] <= heure_debut and disp[3] >= heure_fin and disp[0] == id_salle]
+        timetable[jour][heure_debut].append({
+            "Cours": matiere_info[1],
+            "Professeur": f"{professeur_info[1]} {professeur_info[2]}",
+            "Salle": salle_info[1],
+            "Heure fin": heure_fin
+        })
 
-        if prof_dispo and salle_dispo:
-            # Si le professeur et la salle sont disponibles, ajoutez le cours à l'emploi du temps
-            if jour not in timetable:
-                timetable[jour] = []
-            timetable[jour].append({
-                "Cours": matiere_info[1],
-                "Professeur": f"{professeur_info[1]} {professeur_info[2]}",
-                "Salle": salle_info[1],
-                "Heure début": heure_debut,
-                "Heure fin": heure_fin
-            })
-        else:
-            print(f"Impossible de planifier le cours {matiere_info[1]} le {jour} de {heure_debut} à {heure_fin}. Professeur ou salle non disponible.")
+    return timetable
 
-    # Création d'un nouveau classeur Excel
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Emploi du temps"
+def evaluate_timetable(timetable, disponibilites, capacites_salles):
+    conflicts_salle = 0
+    conflicts_professeur = 0
+    capacity_constraints = 0
+    prof_availability_constraints = 0
+    individual_preferences = 0
 
-    # En-têtes
-    headers = ["Jour", "Heure début", "Heure fin", "Cours", "Professeur", "Salle"]
-    ws.append(headers)
+    for jour, heures in timetable.items():
+        for heure, cours in heures.items():
+            for course in cours:
+                salle = course['Salle']
+                professeur = course['Professeur']
+                heure_debut = heure
+                heure_fin = course['Heure fin']
 
-    # Ajout des données dans le classeur Excel
-    for jour, cours_jour in timetable.items():
-        for cours_item in cours_jour:
-            ws.append([jour, cours_item['Heure début'], cours_item['Heure fin'], cours_item['Cours'], cours_item['Professeur'], cours_item['Salle']])
+                # Vérification des conflits de salle
+                salle_dispo = [disp for disp in disponibilites if disp[1] == jour and disp[2] <= heure_debut and disp[3] >= heure_fin and disp[0] == salle]
+                if not salle_dispo:
+                    conflicts_salle += 1
 
-    # Enregistrement du fichier Excel
-    filename = "emploi_du_temps.xlsx"
-    wb.save(filename)
-    print(f"Emploi du temps enregistré dans le fichier Excel : {filename}")
+                # Vérification des conflits de professeur
+                prof_dispo = [disp for disp in disponibilites if disp[1] == jour and disp[2] <= heure_debut and disp[3] >= heure_fin and disp[0] == professeur]
+                if not prof_dispo:
+                    conflicts_professeur += 1
+
+                # Vérification des contraintes de capacité des salles
+                if capacites_salles[salle] < len(cours):
+                    capacity_constraints += 1
+
+                # Vérification des contraintes de disponibilité des professeurs
+                if not prof_dispo:
+                    prof_availability_constraints += 1
+
+                # Vérification des préférences individuelles (non implémentées)
+
+    evaluation = {
+        'conflicts_salle': conflicts_salle,
+        'conflicts_professeur': conflicts_professeur,
+        'capacity_constraints': capacity_constraints,
+        'prof_availability_constraints': prof_availability_constraints,
+        'individual_preferences': individual_preferences
+    }
+
+    return evaluation
+
+def generate_neighborhood(timetable):
+    # Génère un voisinage en effectuant un échange aléatoire de deux cours
+    # Nous allons simplement choisir deux cours aléatoires et échanger leurs horaires
+    new_timetable = copy.deepcopy(timetable)
+
+    # Choix aléatoire d'un jour et d'une heure
+    jour1 = random.choice(list(new_timetable.keys()))
+    heure1 = random.choice(list(new_timetable[jour1].keys()))
+
+    # Choix aléatoire d'un autre jour et d'une autre heure
+    jour2 = random.choice(list(new_timetable.keys()))
+    heure2 = random.choice(list(new_timetable[jour2].keys()))
+
+    # Échange des cours entre les deux horaires
+    cours1 = new_timetable[jour1][heure1]
+    cours2 = new_timetable[jour2][heure2]
+    new_timetable[jour1][heure1] = cours2
+    new_timetable[jour2][heure2] = cours1
+
+    return new_timetable
+
+def recherche_locale(initial_timetable, disponibilites, capacites_salles, max_iterations=1000):
+    current_timetable = initial_timetable
+    best_timetable = initial_timetable
+    best_evaluation = evaluate_timetable(initial_timetable, disponibilites, capacites_salles)
+
+    iterations = 0
+    while iterations < max_iterations:
+        new_timetable = generate_neighborhood(current_timetable)
+        new_evaluation = evaluate_timetable(new_timetable, disponibilites, capacites_salles)
+
+        if (new_evaluation['conflicts_salle'] + new_evaluation['conflicts_professeur'] + new_evaluation['capacity_constraints'] + 
+            new_evaluation['prof_availability_constraints'] + new_evaluation['individual_preferences'] < 
+            best_evaluation['conflicts_salle'] + best_evaluation['conflicts_professeur'] + best_evaluation['capacity_constraints'] + 
+            best_evaluation['prof_availability_constraints'] + best_evaluation['individual_preferences']):
+            best_timetable = new_timetable
+            best_evaluation = new_evaluation
+
+        current_timetable = new_timetable
+        iterations += 1
+
+    return best_timetable
 
 def optimize_timetable(cursor, conn):
-    # Cette fonction devrait contenir la logique pour optimiser l'emploi du temps.
-    # Étant donné que l'optimisation dépend fortement des contraintes spécifiques et de la logique métier,
-    # elle doit être adaptée en fonction des besoins spécifiques du projet. Nous ne l'implémenterons pas ici.
-    pass
+    # Récupération des données
+    cours = fetch_data(cursor, "Cours_Etudiants")
+    professeurs = fetch_data(cursor, "Professeurs")
+    matieres = fetch_data(cursor, "Matieres")  
+    salles = fetch_data(cursor, "Salles")
+    disponibilites = fetch_data(cursor, "Disponibilites")
+    capacites_salles = {salle[1]: salle[2] for salle in salles}  # Création d'un dictionnaire des capacités des salles
 
-def main_menu():
-    print("\nMenu Principal :")
-    print("1. Saisir un professeur")
-    print("2. Saisir une matière")
-    print("3. Saisir une salle")
-    print("4. Saisir une classe")
-    print("5. Saisir un cours")
-    print("6. Saisir un élève")
-    print("7. Saisir une disponibilité pour un professeur")
-    print("8. Associer un cours à une classe")
-    print("9. Saisir une disponibilité pour une salle")
-    print("10. Générer et sauvegarder l'emploi du temps dans un fichier Excel")
-    print("11. Optimiser l'emploi du temps")
-    print("0. Quitter")
-    return input("Entrez votre choix : ")
+    # Création de l'emploi du temps initial
+    initial_timetable = generate_initial_timetable(cours, professeurs, matieres, salles)
+
+    # Optimisation de l'emploi du temps
+    optimized_timetable = recherche_locale(initial_timetable, disponibilites, capacites_salles)
+
+    return optimized_timetable
 
 def main():
     global fake
@@ -244,39 +304,25 @@ def main():
 
     cursor = conn.cursor()
 
-    while True:
-        choice = main_menu()
+    optimized_timetable = optimize_timetable(cursor, conn)
 
-        if choice == '1':
-            saisie_professeurs(cursor, conn)
-        elif choice == '2':
-            saisie_matieres(cursor, conn)
-        elif choice == '3':
-            saisie_salles(cursor, conn)
-        elif choice == '4':
-            saisie_classes(cursor, conn)
-        elif choice == '5':
-            saisie_cours_etudiants(cursor, conn)
-        elif choice == '6':
-            saisie_eleves(cursor, conn)
-        elif choice == '7':
-            saisie_disponibilites(cursor, conn)
-        elif choice == '8':
-            saisie_cours_classe(cursor, conn)
-        elif choice == '9':
-            saisie_disponibilites_salle(cursor, conn)
-        elif choice == '10':
-            generate_timetable(cursor, conn)
-        elif choice == '11':
-            optimize_timetable(cursor, conn)
-        elif choice == '0':
-            break
-        else:
-            print("Choix invalide. Veuillez réessayer.")
+    # Création d'un nouveau classeur Excel pour l'emploi du temps optimisé
+    wb = Workbook()
+    ws = wb.active
+
+    # Écriture de l'emploi du temps optimisé dans le classeur Excel
+    for jour, heures in optimized_timetable.items():
+        ws.append([jour])
+        for heure, cours in heures.items():
+            for course in cours:
+                ws.append([heure, course["Cours"], course["Professeur"], course["Salle"]])
+            ws.append([])  # Ajoute une ligne vide entre les heures
+
+    wb.save("emploi_du_temps_optimise.xlsx")
+    print("L'emploi du temps optimisé a été enregistré avec succès sous le nom 'emploi_du_temps_optimise.xlsx'.")
 
     cursor.close()
     conn.close()
-    print("Connexion à la base de données fermée.")
 
 if __name__ == "__main__":
     main()
